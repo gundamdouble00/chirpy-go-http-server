@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 )
 
@@ -63,9 +64,29 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(dat)
 }
 
+func isProfaneWord(word string) bool {
+	return (word == "fornax") || (word == "kerfuffle") || (word == "sharbert")
+}
+
+func cleanUpProfaneWords(msg string) string {
+	cleanedWords := []string{}
+	words := strings.Split(msg, " ")
+	for _, word := range words {
+		temp := strings.ToLower(word)
+		if isProfaneWord(temp) {
+			cleanedWords = append(cleanedWords, "****")
+		} else {
+			cleanedWords = append(cleanedWords, word)
+		}
+	}
+
+	cleanedMsg := strings.Join(cleanedWords, " ")
+	return cleanedMsg
+}
+
 func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, 400, "not supported method")
+		respondWithError(w, 405, "method not allowed")
 		return
 	}
 
@@ -76,7 +97,7 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	params := requestBody{}
 	err := json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
-		respondWithError(w, 400, "Something went wrong")
+		respondWithError(w, 400, "invalid JSON")
 		return
 	}
 
@@ -85,7 +106,8 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, 200, map[string]bool{"valid": true})
+	// respondWithJSON(w, 200, map[string]bool{"valid": true})
+	respondWithJSON(w, 200, map[string]string{"cleaned_body": cleanUpProfaneWords(params.Body)})
 }
 
 func main() {
