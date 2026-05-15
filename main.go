@@ -1,19 +1,26 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/gundamdouble00/chirpy-go-http-server/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 const port = "8080"
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func middlewareLog(next http.Handler) http.Handler {
@@ -59,7 +66,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 		return
 	}
 
-	w.Header().Set("Content-Cype", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(dat)
 }
@@ -111,9 +118,23 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("couldn't load .env: %w", err)
+	}
+
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("couldn't connect database: %w", err)
+	}
+	dbQueries := database.New(db)
+
 	hanlder := http.StripPrefix("/app/", http.FileServer(http.Dir(".")))
 	mux := http.NewServeMux()
-	apiCfg := &apiConfig{}
+	apiCfg := &apiConfig{
+		dbQueries: dbQueries,
+	}
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(hanlder))
 
